@@ -1,1 +1,1163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>StockSense — Inventory Management</title>
 
+<style>
+:root{
+  --ink:#1B2430; --paper:#F7FAFD; --line:#D6DEE8;
+  --panel:#FFFFFF; --muted:#7A7566;
+  --up:#3D6B52; --up-bg:#E4EEE7;
+  --down:#B5451B; --down-bg:#F6E6DE;
+  --wait:#8A6D1F; --wait-bg:#F1E9D2;
+  --focus:#2F5D8A;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+
+:root[data-theme="dark"]{
+  --ink:#ECE9E1; --paper:#14181D; --line:#2B323C;
+  --panel:#1B2129; --muted:#8B93A0;
+  --up:#7FBF9C; --up-bg:#1D2B24;
+  --down:#E08761; --down-bg:#2E1E17;
+  --wait:#D8B85B; --wait-bg:#2B2515;
+}
+
+html,body{height:100%;}
+*{box-sizing:border-box;}
+
+body{
+  margin:0;
+  background:transparent;
+  color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  position:relative;
+}
+
+#bgcanvas{
+  position:fixed;
+  inset:0;
+  width:100%;
+  height:100%;
+  z-index:-1;
+  background:linear-gradient(135deg,#D9E9FB 0%,#E8F1FA 25%,#F1F7EF 50%,#E3EEF9 75%,#DCEBF9 100%);
+  background-size:220% 220%;
+  animation:gradientDrift 22s ease-in-out infinite;
+}
+
+:root[data-theme="dark"] #bgcanvas{
+  background:linear-gradient(135deg,#0D141C 0%,#131A22 25%,#101A16 50%,#111823 75%,#0D141C 100%);
+  background-size:220% 220%;
+  animation:gradientDrift 22s ease-in-out infinite;
+}
+
+@keyframes gradientDrift{
+  0%{background-position:0% 30%;}
+  50%{background-position:100% 70%;}
+  100%{background-position:0% 30%;}
+}
+
+#glow{
+  position:fixed;
+  inset:0;
+  z-index:-1;
+  pointer-events:none;
+  background:radial-gradient(500px circle at var(--mx,50%) var(--my,20%), rgba(47,93,138,.14), transparent 62%);
+  transition:background .15s ease-out;
+}
+
+:root[data-theme="dark"] #glow{
+  background:radial-gradient(500px circle at var(--mx,50%) var(--my,20%), rgba(127,191,156,.14), transparent 62%);
+}
+
+button,input,select{font-family:inherit;}
+
+::-webkit-scrollbar{width:8px;height:8px;}
+::-webkit-scrollbar-thumb{
+  background:var(--line);
+  border-radius:4px;
+}
+
+#auth{
+  min-height:100%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:24px;
+}
+
+.card{
+  background:color-mix(in srgb, var(--panel) 72%, transparent);
+  backdrop-filter:blur(14px) saturate(140%);
+  -webkit-backdrop-filter:blur(14px) saturate(140%);
+  border:1px solid color-mix(in srgb, var(--line) 60%, transparent);
+  border-radius:14px;
+  padding:32px;
+  width:100%;
+  max-width:380px;
+  box-shadow:0 20px 60px rgba(20,40,60,.18);
+}
+
+.brand{
+  font-size:26px;
+  font-weight:700;
+  letter-spacing:-0.02em;
+  margin:0 0 4px;
+}
+
+.tag{
+  color:var(--muted);
+  font-size:13.5px;
+  margin:0 0 22px;
+}
+
+.field{margin-bottom:13px;}
+
+.field label{
+  display:block;
+  font-size:12px;
+  color:var(--muted);
+  margin-bottom:4px;
+}
+
+.field input,
+.field select{
+  width:100%;
+  padding:9px 10px;
+  border:1px solid var(--line);
+  border-radius:6px;
+  background:var(--paper);
+  color:var(--ink);
+  font-size:14px;
+}
+
+.field input:focus,
+.field select:focus,
+button:focus-visible{
+  outline:2px solid var(--focus);
+  outline-offset:1px;
+}
+
+.btn{
+  width:100%;
+  padding:10px;
+  border:none;
+  border-radius:6px;
+  background:var(--ink);
+  color:var(--paper);
+  font-size:14px;
+  cursor:pointer;
+}
+
+.link{
+  background:none;
+  border:none;
+  color:var(--focus);
+  cursor:pointer;
+  font-size:12.5px;
+  padding:0;
+  text-decoration:underline;
+}
+
+.err{
+  color:var(--down);
+  font-size:13px;
+  margin:8px 0 0;
+}
+
+#app{
+  display:none;
+  height:100%;
+}
+
+#app.on{
+  display:flex;
+  flex-direction:column;
+}
+
+.topnav{
+  display:flex;
+  align-items:center;
+  background:rgba(220,230,243,.62);
+  backdrop-filter:blur(12px) saturate(140%);
+  -webkit-backdrop-filter:blur(12px) saturate(140%);
+  color:#000;
+  padding:0 18px;
+  flex:none;
+  position:relative;
+  z-index:8;
+  border-bottom:1px solid rgba(195,210,230,.7);
+}
+
+.topnav .brand2{
+  font-size:18px;
+  font-weight:700;
+  padding:13px 22px 13px 0;
+  letter-spacing:-0.02em;
+  white-space:nowrap;
+  color:#000;
+}
+
+.navlinks{
+  display:flex;
+  align-items:stretch;
+  gap:2px;
+  flex:1;
+  flex-wrap:wrap;
+}
+
+.topnav button.tab{
+  all:unset;
+  cursor:pointer;
+  padding:14px 14px;
+  font-size:13.5px;
+  color:#000;
+  white-space:nowrap;
+  border-bottom:3px solid transparent;
+}
+
+.topnav button.tab:hover{
+  background:#C9D9EC;
+}
+
+.topnav button.tab.active{
+  color:#000;
+  font-weight:600;
+  border-bottom:3px solid var(--up);
+}
+
+.dropdown{position:relative;}
+
+.dd-menu{
+  display:none;
+  position:absolute;
+  top:100%;
+  left:0;
+  background:#F3F7FB;
+  border:1px solid #C3D2E6;
+  border-radius:0 0 6px 6px;
+  min-width:170px;
+  box-shadow:0 8px 20px rgba(0,0,0,.12);
+  overflow:hidden;
+  padding:4px 0;
+  z-index:30;
+}
+
+.dropdown.open .dd-menu{display:block;}
+
+.dd-menu button{
+  all:unset;
+  display:block;
+  width:100%;
+  padding:9px 16px;
+  font-size:13px;
+  color:#000;
+  cursor:pointer;
+  box-sizing:border-box;
+}
+
+.dd-menu button:hover{background:#DCE6F3;}
+
+.dd-menu button.active{
+  color:var(--up);
+  font-weight:600;
+}
+
+.topnav .who{
+  margin-left:auto;
+  padding:10px 0 10px 16px;
+  font-size:11.5px;
+  color:#000;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  white-space:nowrap;
+}
+
+.topnav .who button{
+  all:unset;
+  cursor:pointer;
+  color:#000;
+  text-decoration:underline;
+  font-size:11.5px;
+}
+
+main{
+  flex:1;
+  overflow-y:auto;
+  padding:24px 28px 60px;
+}
+
+h1.pg{
+  font-size:22px;
+  margin:0 0 4px;
+  letter-spacing:-0.01em;
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+
+.sub{
+  color:var(--muted);
+  font-size:13px;
+  margin:0 0 18px;
+}
+
+.kpis{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+  gap:14px;
+  margin-bottom:20px;
+}
+
+.kpi-card{
+  background:color-mix(in srgb, var(--panel) 70%, transparent);
+  backdrop-filter:blur(10px) saturate(140%);
+  -webkit-backdrop-filter:blur(10px) saturate(140%);
+  border:1px solid color-mix(in srgb, var(--line) 55%, transparent);
+  border-radius:8px;
+  padding:16px;
+}
+
+.kpi-card .kt{
+  font-size:14px;
+  font-weight:600;
+  margin-bottom:10px;
+}
+
+.kpi-card .krow{
+  display:flex;
+  justify-content:space-between;
+  font-size:12.5px;
+  color:var(--muted);
+  padding:3px 0;
+}
+
+.kpi-card .krow b{
+  color:var(--ink);
+  font-size:13.5px;
+}
+
+.kpi-card .krow.late b{color:var(--down);}
+.kpi-card .krow.wait b{color:var(--wait);}
+
+.filters{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  align-items:center;
+}
+
+.filters select,
+.filters input{
+  padding:7px 9px;
+  border:1px solid var(--line);
+  border-radius:6px;
+  background:var(--panel);
+  color:var(--ink);
+  font-size:13px;
+}
+
+.toolbar{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:14px;
+  gap:10px;
+  flex-wrap:wrap;
+}
+
+.viewtoggle{
+  display:flex;
+  border:1px solid var(--line);
+  border-radius:6px;
+  overflow:hidden;
+}
+
+.viewtoggle button{
+  all:unset;
+  cursor:pointer;
+  padding:6px 11px;
+  font-size:12px;
+  color:var(--muted);
+}
+
+.viewtoggle button.on{
+  background:var(--ink);
+  color:var(--paper);
+}
+
+.btn-sm{
+  padding:8px 14px;
+  border-radius:6px;
+  border:none;
+  background:var(--ink);
+  color:var(--paper);
+  font-size:13px;
+  cursor:pointer;
+}
+
+.btn-sm.ghost{
+  background:transparent;
+  border:1px solid var(--line);
+  color:var(--ink);
+}
+
+.btn-sm.warn{background:var(--down);}
+
+.btn-sm[disabled]{
+  opacity:.4;
+  cursor:not-allowed;
+}
+
+.icon-btn{
+  background:none;
+  border:none;
+  cursor:pointer;
+  color:var(--focus);
+  font-size:13px;
+  text-decoration:underline;
+  padding:0;
+  margin-right:8px;
+}
+
+table{
+  width:100%;
+  border-collapse:collapse;
+  background:color-mix(in srgb, var(--panel) 74%, transparent);
+  backdrop-filter:blur(10px) saturate(140%);
+  -webkit-backdrop-filter:blur(10px) saturate(140%);
+  border:1px solid color-mix(in srgb, var(--line) 55%, transparent);
+  border-radius:8px;
+  overflow:hidden;
+  font-size:13px;
+}
+
+th,td{
+  text-align:left;
+  padding:8px 12px;
+  border-bottom:1px solid var(--line);
+}
+
+th{
+  color:var(--muted);
+  font-weight:500;
+  font-size:11.5px;
+}
+
+tr:last-child td{border-bottom:none;}
+
+.tbl-wrap{
+  overflow-x:auto;
+  border-radius:8px;
+  margin-bottom:6px;
+}
+
+.pill{
+  padding:2px 9px;
+  border-radius:99px;
+  font-size:11px;
+  display:inline-block;
+  white-space:nowrap;
+}
+
+.p-draft{
+  background:var(--line);
+  color:var(--muted);
+}
+
+.p-waiting{
+  background:var(--wait-bg);
+  color:var(--wait);
+}
+
+.p-ready{
+  background:#DCE6F1;
+  color:var(--focus);
+}
+
+.p-done{
+  background:var(--up-bg);
+  color:var(--up);
+}
+
+.p-canceled{
+  background:var(--down-bg);
+  color:var(--down);
+}
+
+tr.mv-in td:first-child{
+  border-left:3px solid var(--up);
+}
+
+tr.mv-out td:first-child{
+  border-left:3px solid var(--down);
+}
+
+.kanban{
+  display:grid;
+  grid-auto-flow:column;
+  grid-auto-columns:230px;
+  gap:12px;
+  overflow-x:auto;
+  padding-bottom:6px;
+}
+
+.kcol{
+  background:color-mix(in srgb, var(--panel) 70%, transparent);
+  backdrop-filter:blur(10px) saturate(140%);
+  -webkit-backdrop-filter:blur(10px) saturate(140%);
+  border:1px solid color-mix(in srgb, var(--line) 55%, transparent);
+  border-radius:8px;
+  padding:10px;
+}
+
+.kcol h4{
+  margin:0 0 8px;
+  font-size:12.5px;
+  color:var(--muted);
+}
+
+.kcard{
+  background:var(--paper);
+  border:1px solid var(--line);
+  border-radius:6px;
+  padding:8px 10px;
+  margin-bottom:8px;
+  font-size:12.5px;
+  cursor:pointer;
+}
+
+.kcard b{
+  display:block;
+  font-size:13px;
+}
+
+.kcard.stockout{
+  border-color:var(--down);
+  background:var(--down-bg);
+}
+
+.modal-bg{
+  position:fixed;
+  inset:0;
+  background:rgba(20,18,14,.45);
+  display:none;
+  align-items:center;
+  justify-content:center;
+  padding:20px;
+  z-index:20;
+}
+
+.modal-bg.on{display:flex;}
+
+.modal{
+  background:color-mix(in srgb, var(--panel) 82%, transparent);
+  backdrop-filter:blur(16px) saturate(140%);
+  -webkit-backdrop-filter:blur(16px) saturate(140%);
+  border-radius:10px;
+  padding:22px;
+  width:100%;
+  max-width:480px;
+  max-height:88vh;
+  overflow-y:auto;
+}
+
+.modal h3{
+  margin:0 0 4px;
+  font-size:17px;
+}
+
+.modal .stepper{
+  font-size:11.5px;
+  color:var(--muted);
+  margin-bottom:14px;
+}
+
+.row2{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
+}
+
+.line-item{
+  display:grid;
+  grid-template-columns:2fr 1fr 26px;
+  gap:6px;
+  margin-bottom:6px;
+  align-items:center;
+}
+
+.line-item button{
+  background:none;
+  border:none;
+  color:var(--down);
+  cursor:pointer;
+  font-size:15px;
+}
+
+.modal-actions{
+  display:flex;
+  gap:8px;
+  justify-content:flex-end;
+  margin-top:16px;
+  flex-wrap:wrap;
+}
+
+.empty{
+  color:var(--muted);
+  font-size:13px;
+  padding:26px 0;
+  text-align:center;
+}
+
+.note{
+  font-size:12px;
+  color:var(--muted);
+  margin:4px 0 14px;
+}
+
+/* ================= interactivity polish ================= */
+
+.kpi-card,.kcard,table tr,.btn-sm,.btn,.viewtoggle button,.icon-btn,.guide-card,.faq-item{
+  transition:transform .15s ease, box-shadow .15s ease, background .15s ease, border-color .15s ease;
+}
+
+.kpi-card:hover{
+  transform:translateY(-2px);
+  box-shadow:0 10px 26px rgba(30,50,70,.12);
+}
+
+.kcard:hover{
+  transform:translateY(-2px);
+  box-shadow:0 8px 18px rgba(30,50,70,.14);
+}
+
+table tbody tr:hover td{
+  background:color-mix(in srgb, var(--focus) 6%, transparent);
+}
+
+.btn:hover,.btn-sm:not([disabled]):hover{
+  filter:brightness(1.08);
+  transform:translateY(-1px);
+}
+
+#main{animation:fadeUp .28s ease;}
+
+@keyframes fadeUp{
+  from{opacity:0;transform:translateY(6px);}
+  to{opacity:1;transform:translateY(0);}
+}
+
+/* ================= landing intro panel ================= */
+
+.auth-shell{
+  display:flex;
+  gap:28px;
+  align-items:stretch;
+  flex-wrap:wrap;
+  justify-content:center;
+  max-width:940px;
+  width:100%;
+}
+
+.intro-panel{
+  background:color-mix(in srgb, var(--panel) 66%, transparent);
+  backdrop-filter:blur(14px) saturate(140%);
+  -webkit-backdrop-filter:blur(14px) saturate(140%);
+  border:1px solid color-mix(in srgb, var(--line) 55%, transparent);
+  border-radius:14px;
+  padding:32px;
+  flex:1 1 380px;
+  max-width:440px;
+  box-shadow:0 20px 60px rgba(20,40,60,.14);
+}
+
+.intro-badge{
+  display:inline-block;
+  background:var(--up-bg);
+  color:var(--up);
+  font-size:11.5px;
+  font-weight:600;
+  padding:4px 10px;
+  border-radius:99px;
+  margin-bottom:12px;
+}
+
+.intro-panel h2{
+  margin:0 0 8px;
+  font-size:19px;
+  letter-spacing:-0.01em;
+}
+
+.intro-panel p{
+  color:var(--muted);
+  font-size:13.5px;
+  line-height:1.55;
+  margin:0 0 14px;
+}
+
+.intro-features{
+  list-style:none;
+  margin:0 0 16px;
+  padding:0;
+}
+
+.intro-features li{
+  display:flex;
+  gap:10px;
+  align-items:flex-start;
+  font-size:13px;
+  padding:7px 0;
+  border-bottom:1px dashed color-mix(in srgb, var(--line) 70%, transparent);
+}
+
+.intro-features li:last-child{border-bottom:none;}
+
+.intro-features .ico{
+  flex:none;
+  font-size:15px;
+}
+
+/* ================= guided tour modal ================= */
+
+.tour-steps{
+  display:flex;
+  gap:5px;
+  margin:12px 0 4px;
+}
+
+.tour-steps span{
+  height:4px;
+  flex:1;
+  border-radius:3px;
+  background:var(--line);
+}
+
+.tour-steps span.on{background:var(--up);}
+
+.tour-body{min-height:150px;}
+
+.tour-body h4{margin:4px 0 8px;font-size:15px;}
+.tour-body p{color:var(--muted);font-size:13.5px;line-height:1.6;margin:0 0 8px;}
+.tour-body ul{margin:6px 0 0;padding-left:18px;font-size:13px;color:var(--ink);}
+.tour-body li{margin-bottom:5px;}
+
+/* ================= guide page ================= */
+
+.guide-hero{
+  background:linear-gradient(120deg, color-mix(in srgb, var(--up-bg) 80%, transparent), color-mix(in srgb, var(--panel) 60%, transparent));
+  border:1px solid color-mix(in srgb, var(--line) 55%, transparent);
+  border-radius:12px;
+  padding:22px 24px;
+  margin-bottom:20px;
+}
+
+.guide-hero h2{margin:0 0 6px;font-size:18px;}
+.guide-hero p{margin:0;color:var(--muted);font-size:13.5px;line-height:1.6;max-width:760px;}
+
+.guide-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+  gap:10px;
+  margin:16px 0 26px;
+}
+
+.guide-step{
+  background:color-mix(in srgb, var(--panel) 70%, transparent);
+  border:1px solid color-mix(in srgb, var(--line) 55%, transparent);
+  border-radius:8px;
+  padding:12px;
+  font-size:12.5px;
+}
+
+.guide-step b{
+  display:block;
+  font-size:12px;
+  color:var(--up);
+  margin-bottom:4px;
+}
+
+.acc-item{
+  border:1px solid color-mix(in srgb, var(--line) 55%, transparent);
+  border-radius:8px;
+  margin-bottom:8px;
+  background:color-mix(in srgb, var(--panel) 70%, transparent);
+  overflow:hidden;
+}
+
+.acc-head{
+  all:unset;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  width:100%;
+  box-sizing:border-box;
+  padding:13px 16px;
+  cursor:pointer;
+  font-size:13.5px;
+  font-weight:600;
+}
+
+.acc-head .car{
+  transition:transform .2s ease;
+  color:var(--muted);
+  font-size:12px;
+}
+
+.acc-item.open .acc-head .car{transform:rotate(180deg);}
+
+.acc-body{
+  display:none;
+  padding:0 16px 15px;
+  font-size:13px;
+  color:var(--muted);
+  line-height:1.6;
+}
+
+.acc-item.open .acc-body{display:block;}
+
+.acc-body ol,.acc-body ul{margin:6px 0;padding-left:18px;}
+.acc-body li{margin-bottom:4px;}
+.acc-body .why{
+  background:var(--up-bg);
+  color:var(--up);
+  border-radius:6px;
+  padding:8px 10px;
+  margin-bottom:10px;
+  font-size:12.5px;
+}
+
+/* ================= help fab ================= */
+
+#helpFab{
+  position:fixed;
+  right:20px;
+  bottom:20px;
+  width:48px;
+  height:48px;
+  border-radius:50%;
+  border:none;
+  background:var(--ink);
+  color:var(--paper);
+  font-size:19px;
+  cursor:pointer;
+  box-shadow:0 10px 26px rgba(20,30,45,.3);
+  z-index:15;
+  display:none;
+  align-items:center;
+  justify-content:center;
+}
+
+#helpFab.show{display:flex;}
+
+#helpFab:hover{transform:translateY(-2px) scale(1.05);}
+
+@media(max-width:720px){
+  .topnav{
+    padding:0 10px;
+    flex-wrap:nowrap;
+  }
+
+  .topnav .brand2{display:none;}
+  .topnav .who{display:none;}
+
+  main{padding:16px;}
+
+  .intro-panel{order:2;}
+  #helpFab{right:14px;bottom:14px;}
+}
+</style>
+</head>
+
+<body>
+
+<canvas id="bgcanvas"></canvas>
+<div id="glow"></div>
+
+<div id="auth">
+  <div class="auth-shell">
+
+  <div class="intro-panel">
+    <span class="intro-badge">📦 Why this site exists</span>
+    <h2>StockSense — inventory, without the spreadsheet chaos</h2>
+    <p>
+      Most small teams track stock in scattered Excel sheets — no one knows what's
+      actually on the shelf, what's already promised to a customer, or what's about
+      to run out. StockSense was built to fix exactly that: one place to receive
+      goods, ship them out, move them between warehouses, and see live stock levels —
+      so nothing gets over-sold or forgotten.
+    </p>
+    <ul class="intro-features">
+      <li><span class="ico">📥</span><span><b>Receipts</b> — log incoming stock from suppliers into a warehouse.</span></li>
+      <li><span class="ico">📤</span><span><b>Delivery</b> — reserve and ship stock out to customers.</span></li>
+      <li><span class="ico">🔁</span><span><b>Adjustments</b> — move or correct stock between locations.</span></li>
+      <li><span class="ico">📊</span><span><b>Dashboard &amp; Stock</b> — see totals, value, and low/out-of-stock alerts at a glance.</span></li>
+    </ul>
+    <button class="link" onclick="openTour(true)">▶ New here? Take a 60‑second guided tour</button>
+  </div>
+
+  <div class="card">
+
+    <p class="brand">StockSense</p>
+    <p class="tag" id="authTag">
+      Sign in to your inventory dashboard
+    </p>
+
+    <div id="loginForm">
+
+      <div class="field">
+        <label>Login Id</label>
+        <input id="li-id" placeholder="e.g. arao">
+      </div>
+
+      <div class="field">
+        <label>Password</label>
+        <input id="li-pass" type="password">
+      </div>
+
+      <button class="btn" onclick="doLogin()">Sign in</button>
+
+      <p id="loginErr" class="err"></p>
+
+      <div style="display:flex;justify-content:space-between;margin-top:14px;">
+        <button class="link" onclick="showScreen('signup')">
+          Sign up
+        </button>
+
+        <button class="link" onclick="showScreen('reset1')">
+          Forgot password?
+        </button>
+      </div>
+
+    </div>
+
+    <div id="signupForm" style="display:none">
+
+      <div class="field">
+        <label>Enter Login Id</label>
+        <input id="su-id" placeholder="e.g. arao">
+      </div>
+
+      <div class="field">
+        <label>Enter Email Id</label>
+        <input id="su-email" type="email">
+      </div>
+
+      <div class="field">
+        <label>Role</label>
+        <select id="su-role">
+          <option>Inventory Manager</option>
+          <option>Warehouse Staff</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Enter Password</label>
+        <input id="su-pass" type="password">
+      </div>
+
+      <div class="field">
+        <label>Re-enter Password</label>
+        <input id="su-pass2" type="password">
+      </div>
+
+      <button class="btn" onclick="doSignup()">Sign up</button>
+
+      <p id="signupErr" class="err"></p>
+
+      <div style="margin-top:14px;">
+        <button class="link" onclick="showScreen('login')">
+          Back to sign in
+        </button>
+      </div>
+
+    </div>
+
+    <div id="reset1Form" style="display:none">
+
+      <p class="tag">
+        Enter your login Id — we'll send a one-time code to the email on file.
+      </p>
+
+      <div class="field">
+        <label>Login Id</label>
+        <input id="rs-id">
+      </div>
+
+      <button class="btn" onclick="sendOtp()">Send code</button>
+
+      <p id="reset1Err" class="err"></p>
+
+      <div style="margin-top:14px;">
+        <button class="link" onclick="showScreen('login')">
+          Back to sign in
+        </button>
+      </div>
+
+    </div>
+
+    <div id="reset2Form" style="display:none">
+
+      <p class="tag" id="otpNote"></p>
+
+      <div class="field">
+        <label>One-time code</label>
+        <input id="rs-otp" maxlength="6">
+      </div>
+
+      <div class="field">
+        <label>New password</label>
+        <input id="rs-newpass" type="password">
+      </div>
+
+      <button class="btn" onclick="doReset()">Reset password</button>
+
+      <p id="reset2Err" class="err"></p>
+
+      <div style="margin-top:14px;">
+        <button class="link" onclick="showScreen('login')">
+          Back to sign in
+        </button>
+      </div>
+
+    </div>
+
+  </div>
+
+  </div>
+</div>
+
+<div id="app">
+
+  <header class="topnav">
+
+    <div class="brand2">StockSense</div>
+
+    <nav class="navlinks">
+
+      <button class="tab active"
+              data-tab="dashboard"
+              title="Live overview of stock, alerts and open operations"
+              onclick="switchTab('dashboard')">
+        Dashboard
+      </button>
+
+      <button class="tab"
+              data-tab="guide"
+              title="Full how-to guide — why this app exists and how to use every screen"
+              onclick="switchTab('guide')">
+        📘 Guide
+      </button>
+
+      <div class="dropdown" id="dd-ops">
+
+        <button class="tab dd-trigger"
+                title="Receive, ship and adjust stock"
+                onclick="toggleDropdown('ops',event)">
+          Operations ▾
+        </button>
+
+        <div class="dd-menu">
+
+          <button data-tab="receipts"
+                  onclick="switchTab('receipts')">
+            Receipts
+          </button>
+
+          <button data-tab="delivery"
+                  onclick="switchTab('delivery')">
+            Delivery
+          </button>
+
+          <button data-tab="adjustments"
+                  onclick="switchTab('adjustments')">
+            Adjustments
+          </button>
+
+        </div>
+
+      </div>
+
+      <button class="tab"
+              id="nav-products"
+              data-tab="products"
+              title="Your product catalog — SKUs, reorder points and cost"
+              onclick="switchTab('products')">
+        Products
+      </button>
+
+      <button class="tab"
+              data-tab="stock"
+              title="On-hand and free-to-use quantity per location"
+              onclick="switchTab('stock')">
+        Stock
+      </button>
+
+      <button class="tab"
+              data-tab="history"
+              title="Full audit trail of every stock movement"
+              onclick="switchTab('history')">
+        Move History
+      </button>
+
+      <div class="dropdown" id="dd-settings">
+
+        <button class="tab dd-trigger"
+                onclick="toggleDropdown('settings',event)">
+          Settings ▾
+        </button>
+
+        <div class="dd-menu">
+
+          <button data-tab="warehouses"
+                  onclick="switchTab('warehouses')">
+            Warehouse
+          </button>
+
+          <button data-tab="locations"
+                  onclick="switchTab('locations')">
+            Location
+          </button>
+
+        </div>
+
+      </div>
+
+    </nav>
+
+    <div class="who">
+      Signed in as
+      <strong id="whoName"></strong>
+      <span id="whoRole" style="opacity:.75;"></span>
+
+      <button onclick="switchTab('profile')">
+        My Profile
+      </button>
+
+      ·
+
+      <button onclick="doLogout()">
+        Logout
+      </button>
+    </div>
+
+  </header>
+
+  <main id="main"></main>
+
+</div>
+
+<div class="modal-bg" id="modalBg">
+  <div class="modal" id="modalBody"></div>
+</div>
+
+<button id="helpFab" title="Help / guided tour" onclick="openContextHelp()">?</button>
+
+<script src="script.js"></script>
+
+</body>
+</html>
